@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aplicación de Dibujo</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #1e1e1e;
+      color: #fff;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .sidebar {
+      width: 60px;
+      background: #2c3e50;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px 0;
+      gap: 10px;
+      box-shadow: 2px 0 5px rgba(0, 0, 0, 0.2);
+    }
+    .sidebar button {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 20px;
+      cursor: pointer;
+      padding: 10px;
+      border-radius: 5px;
+      transition: background 0.3s;
+    }
+    .sidebar button:hover {
+      background: #34495e;
+    }
+    .sidebar button.active {
+      background: #2980b9;
+    }
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: #fff;
+      border: 1px solid #ddd;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    #color-palette {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      margin-top: 10px;
+    }
+    #color-palette div {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid #fff;
+      box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+    }
+    #background-color-selector {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      margin-top: 10px;
+    }
+    #background-color-selector div {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid #fff;
+      box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+    }
+    .shape {
+      position: absolute;
+      border: 2px dashed rgba(255, 255, 255, 0.5);
+      cursor: move;
+    }
+    .page-selector {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      padding: 10px;
+      border-radius: 5px;
+      display: flex;
+      gap: 10px;
+    }
+    .page-selector button {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .page-selector button:hover {
+      color: #2980b9;
+    }
+    #line-thickness-selector {
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+    }
+    #line-thickness-selector input {
+      width: 40px;
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <button id="tool-pencil" title="Lápiz"><i class="fa-solid fa-pencil"></i></button>
+    <button id="tool-line" title="Línea"><i class="fa-solid fa-grip-lines"></i></button>
+    <button id="tool-rectangle" title="Rectángulo"><i class="fa-solid fa-square"></i></button>
+    <button id="tool-circle" title="Círculo"><i class="fa-solid fa-circle"></i></button>
+    <button id="tool-arrow" title="Flecha"><i class="fa-solid fa-arrow-right"></i></button>
+    <button id="tool-diamond" title="Rombo"><i class="fa-solid fa-gem"></i></button>
+    <button id="tool-text" title="Texto"><i class="fa-solid fa-font"></i></button>
+    <button id="tool-move" title="Mover/Redimensionar"><i class="fa-solid fa-arrows-up-down-left-right"></i></button>
+    <button id="tool-delete" title="Eliminar"><i class="fa-solid fa-trash"></i></button>
+    <div id="color-palette">
+      <div style="background: #000;" data-color="#000"></div>
+      <div style="background: #f00;" data-color="#f00"></div>
+      <div style="background: #0f0;" data-color="#0f0"></div>
+      <div style="background: #00f;" data-color="#00f"></div>
+      <div style="background: #ff0;" data-color="#ff0"></div>
+      <div style="background: #0ff;" data-color="#0ff"></div>
+      <div style="background: #f0f;" data-color="#f0f"></div>
+      <div style="background: #fff;" data-color="#fff"></div>
+    </div>
+    <div id="background-color-selector">
+      <div style="background: #fff;" data-bg="#fff" title="Blanco"></div>
+      <div style="background: #000;" data-bg="#000" title="Negro"></div>
+      <div style="background: #333;" data-bg="#333" title="Gris Oscuro"></div>
+    </div>
+    <div id="line-thickness-selector">
+      <label for="thickness">Grosor:</label>
+      <input type="number" id="thickness" min="1" max="10" value="2">
+    </div>
+    <button id="download-btn" title="Descargar PNG"><i class="fa-solid fa-download"></i></button>
+  </div>
+  <div id="canvas-container">
+    <canvas id="drawing-canvas"></canvas>
+  </div>
+  <div class="page-selector">
+    <button id="prev-page">Anterior</button>
+    <span id="page-number">Página 1</span>
+    <button id="next-page">Siguiente</button>
+    <button id="new-page">Nueva Página</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('drawing-canvas');
+    const ctx = canvas.getContext('2d');
+    let isDrawing = false;
+    let startX, startY;
+    let currentTool = 'pencil';
+    let currentColor = '#000';
+    let currentPage = 0;
+    let pages = [[]];
+    let selectedShape = null;
+
+    // Grosor inicial de la línea
+    let lineThickness = 2;
+
+    function resizeCanvas() {
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+      redrawCanvas();
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function redrawCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      pages[currentPage].forEach(shape => drawShape(shape));
+    }
+
+    function drawShape(shape) {
+      ctx.strokeStyle = shape.color;
+      ctx.fillStyle = shape.fill || 'transparent';
+      ctx.lineWidth = shape.thickness || lineThickness; // Usar grosor específico o el global
+      if (shape.type === 'line') {
+        ctx.beginPath();
+        ctx.moveTo(shape.x1, shape.y1);
+        ctx.lineTo(shape.x2, shape.y2);
+        ctx.stroke();
+      } else if (shape.type === 'rectangle') {
+        ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+      } else if (shape.type === 'circle') {
+        ctx.beginPath();
+        ctx.arc(shape.x, shape.y, shape.radius, 0, 2 * Math.PI);
+        ctx.stroke();
+      } else if (shape.type === 'arrow') {
+        drawArrow(shape.x1, shape.y1, shape.x2, shape.y2);
+      } else if (shape.type === 'diamond') {
+        drawDiamond(shape.x, shape.y, shape.width, shape.height);
+      } else if (shape.type === 'text') {
+        ctx.font = '20px Arial';
+        ctx.fillStyle = shape.color;
+        ctx.fillText(shape.text, shape.x, shape.y);
+      } else if (shape.type === 'freehand') {
+        ctx.beginPath();
+        ctx.moveTo(shape.points[0].x, shape.points[0].y);
+        shape.points.forEach(point => ctx.lineTo(point.x, point.y));
+        ctx.stroke();
+      }
+    }
+
+    function drawArrow(x1, y1, x2, y2) {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+
+      const angle = Math.atan2(y2 - y1, x2 - x1);
+      const headLength = 10;
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(
+        x2 - headLength * Math.cos(angle - Math.PI / 6),
+        y2 - headLength * Math.sin(angle - Math.PI / 6)
+      );
+      ctx.lineTo(
+        x2 - headLength * Math.cos(angle + Math.PI / 6),
+        y2 - headLength * Math.sin(angle + Math.PI / 6)
+      );
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    function drawDiamond(x, y, width, height) {
+      ctx.beginPath();
+      ctx.moveTo(x + width / 2, y);
+      ctx.lineTo(x + width, y + height / 2);
+      ctx.lineTo(x + width / 2, y + height);
+      ctx.lineTo(x, y + height / 2);
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+      if (currentTool === 'delete') {
+        deleteShape(e.offsetX, e.offsetY);
+        return;
+      }
+
+      if (currentTool === 'move') {
+        selectShape(e.offsetX, e.offsetY);
+        return;
+      }
+
+      isDrawing = true;
+      startX = e.offsetX;
+      startY = e.offsetY;
+
+      if (currentTool === 'text') {
+        const text = prompt('Ingrese el texto:');
+        if (text) {
+          pages[currentPage].push({ type: 'text', text, x: startX, y: startY, color: currentColor });
+          redrawCanvas();
+        }
+      } else if (currentTool === 'freehand') {
+        pages[currentPage].push({ type: 'freehand', points: [{ x: startX, y: startY }], color: currentColor, thickness: lineThickness });
+      } else {
+        if (['rectangle', 'circle', 'diamond'].includes(currentTool)) {
+          pages[currentPage].push({ type: currentTool, x: startX, y: startY, width: 0, height: 0, color: currentColor, thickness: lineThickness });
+        } else {
+          pages[currentPage].push({ type: currentTool, x1: startX, y1: startY, x2: startX, y2: startY, color: currentColor, thickness: lineThickness });
+        }
+      }
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (currentTool === 'move' && selectedShape) {
+        const dx = e.offsetX - startX;
+        const dy = e.offsetY - startY;
+        if (selectedShape.type === 'rectangle' || selectedShape.type === 'diamond') {
+          selectedShape.x += dx;
+          selectedShape.y += dy;
+        } else if (selectedShape.type === 'circle') {
+          selectedShape.x += dx;
+          selectedShape.y += dy;
+        } else if (['line', 'arrow'].includes(selectedShape.type)) {
+          selectedShape.x1 += dx;
+          selectedShape.y1 += dy;
+          selectedShape.x2 += dx;
+          selectedShape.y2 += dy;
+        } else if (selectedShape.type === 'text') {
+          selectedShape.x += dx;
+          selectedShape.y += dy;
+        }
+        startX = e.offsetX;
+        startY = e.offsetY;
+        redrawCanvas();
+        return;
+      }
+
+      if (!isDrawing) return;
+
+      const x = e.offsetX;
+      const y = e.offsetY;
+
+      const lastShape = pages[currentPage][pages[currentPage].length - 1];
+      if (lastShape) {
+        if (['line', 'arrow'].includes(lastShape.type)) {
+          lastShape.x2 = x;
+          lastShape.y2 = y;
+        } else if (['rectangle', 'diamond'].includes(lastShape.type)) {
+          lastShape.width = x - lastShape.x;
+          lastShape.height = y - lastShape.y;
+        } else if (lastShape.type === 'circle') {
+          lastShape.radius = Math.sqrt(Math.pow(x - lastShape.x, 2) + Math.pow(y - lastShape.y, 2));
+        } else if (lastShape.type === 'freehand') {
+          lastShape.points.push({ x, y });
+        }
+        redrawCanvas();
+      }
+    });
+
+    canvas.addEventListener('mouseup', () => {
+      isDrawing = false;
+      selectedShape = null;
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+      isDrawing = false;
+      selectedShape = null;
+    });
+
+    function selectShape(x, y) {
+      for (let i = pages[currentPage].length - 1; i >= 0; i--) {
+        const shape = pages[currentPage][i];
+        if ((shape.type === 'rectangle' || shape.type === 'diamond') &&
+            x > shape.x && x < shape.x + shape.width && y > shape.y && y < shape.y + shape.height) {
+          selectedShape = shape;
+          startX = x;
+          startY = y;
+          return;
+        } else if (shape.type === 'circle' && Math.sqrt(Math.pow(x - shape.x, 2) + Math.pow(y - shape.y, 2)) <= shape.radius) {
+          selectedShape = shape;
+          startX = x;
+          startY = y;
+          return;
+        } else if (['line', 'arrow'].includes(shape.type)) {
+          const minX = Math.min(shape.x1, shape.x2);
+          const maxX = Math.max(shape.x1, shape.x2);
+          const minY = Math.min(shape.y1, shape.y2);
+          const maxY = Math.max(shape.y1, shape.y2);
+          if (x > minX && x < maxX && y > minY && y < maxY) {
+            selectedShape = shape;
+            startX = x;
+            startY = y;
+            return;
+          }
+        } else if (shape.type === 'text' && x > shape.x && x < shape.x + 100 && y > shape.y - 20 && y < shape.y) {
+          selectedShape = shape;
+          startX = x;
+          startY = y;
+          return;
+        }
+      }
+      selectedShape = null;
+    }
+
+    function deleteShape(x, y) {
+      for (let i = pages[currentPage].length - 1; i >= 0; i--) {
+        const shape = pages[currentPage][i];
+        if ((shape.type === 'rectangle' || shape.type === 'diamond') &&
+            x > shape.x && x < shape.x + shape.width && y > shape.y && y < shape.y + shape.height) {
+          pages[currentPage].splice(i, 1);
+          redrawCanvas();
+          return;
+        } else if (shape.type === 'circle' && Math.sqrt(Math.pow(x - shape.x, 2) + Math.pow(y - shape.y, 2)) <= shape.radius) {
+          pages[currentPage].splice(i, 1);
+          redrawCanvas();
+          return;
+        } else if (['line', 'arrow'].includes(shape.type)) {
+          const minX = Math.min(shape.x1, shape.x2);
+          const maxX = Math.max(shape.x1, shape.x2);
+          const minY = Math.min(shape.y1, shape.y2);
+          const maxY = Math.max(shape.y1, shape.y2);
+          if (x > minX && x < maxX && y > minY && y < maxY) {
+            pages[currentPage].splice(i, 1);
+            redrawCanvas();
+            return;
+          }
+        } else if (shape.type === 'text' && x > shape.x && x < shape.x + 100 && y > shape.y - 20 && y < shape.y) {
+          pages[currentPage].splice(i, 1);
+          redrawCanvas();
+          return;
+        }
+      }
+    }
+
+    document.querySelectorAll('#color-palette div').forEach(colorDiv => {
+      colorDiv.addEventListener('click', () => {
+        currentColor = colorDiv.getAttribute('data-color');
+      });
+    });
+
+    document.querySelectorAll('#background-color-selector div').forEach(bgDiv => {
+      bgDiv.addEventListener('click', () => {
+        const bgColor = bgDiv.getAttribute('data-bg');
+        document.getElementById('canvas-container').style.background = bgColor;
+      });
+    });
+
+    document.getElementById('tool-pencil').addEventListener('click', () => {
+      currentTool = 'freehand';
+      ctx.lineWidth = lineThickness;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = currentColor;
+    });
+
+    document.getElementById('tool-line').addEventListener('click', () => {
+      currentTool = 'line';
+    });
+
+    document.getElementById('tool-rectangle').addEventListener('click', () => {
+      currentTool = 'rectangle';
+    });
+
+    document.getElementById('tool-circle').addEventListener('click', () => {
+      currentTool = 'circle';
+    });
+
+    document.getElementById('tool-arrow').addEventListener('click', () => {
+      currentTool = 'arrow';
+    });
+
+    document.getElementById('tool-diamond').addEventListener('click', () => {
+      currentTool = 'diamond';
+    });
+
+    document.getElementById('tool-text').addEventListener('click', () => {
+      currentTool = 'text';
+    });
+
+    document.getElementById('tool-move').addEventListener('click', () => {
+      currentTool = 'move';
+    });
+
+    document.getElementById('tool-delete').addEventListener('click', () => {
+      currentTool = 'delete';
+    });
+
+    document.getElementById('thickness').addEventListener('input', (e) => {
+      lineThickness = parseInt(e.target.value);
+      ctx.lineWidth = lineThickness;
+    });
+
+    document.getElementById('download-btn').addEventListener('click', () => {
+      const includeBackground = confirm('¿Incluir el fondo del lienzo en la descarga?');
+      const link = document.createElement('a');
+      link.download = 'dibujo.png';
+      if (includeBackground) {
+        link.href = canvas.toDataURL('image/png');
+      } else {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        pages[currentPage].forEach(shape => drawShape(shape));
+        link.href = tempCanvas.toDataURL('image/png');
+      }
+      link.click();
+    });
+
+    document.getElementById('prev-page').addEventListener('click', () => {
+      if (currentPage > 0) {
+        currentPage--;
+        updatePageNumber();
+        redrawCanvas();
+      }
+    });
+
+    document.getElementById('next-page').addEventListener('click', () => {
+      if (currentPage < pages.length - 1) {
+        currentPage++;
+        updatePageNumber();
+        redrawCanvas();
+      }
+    });
+
+    document.getElementById('new-page').addEventListener('click', () => {
+      pages.push([]);
+      currentPage = pages.length - 1;
+      updatePageNumber();
+      redrawCanvas();
+    });
+
+    function updatePageNumber() {
+      document.getElementById('page-number').textContent = `Página ${currentPage + 1}`;
+    }
+  </script>
+</body>
+</html>
